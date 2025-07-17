@@ -12,10 +12,10 @@
     "install:agent": "cd agent && pip install -r requirements.txt"
   },
   "dependencies": {
-    "@ag-ui/client": "0.0.30",
-    "@copilotkit/react-core": "1.9.1",
-    "@copilotkit/react-ui": "1.9.1",
-    "@copilotkit/runtime": "1.9.1",
+    "@ag-ui/crewai": "^0.0.2",
+    "@copilotkit/react-core": "1.9.3",
+    "@copilotkit/react-ui": "1.9.3",
+    "@copilotkit/runtime": "1.9.3",
     "next": "15.3.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

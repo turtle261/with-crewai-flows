@@ -4,7 +4,7 @@ import {
   copilotRuntimeNextJSAppRouterEndpoint,
 } from "@copilotkit/runtime";
 import { NextRequest } from "next/server";
-import { HttpAgent } from "@ag-ui/client";
+import { CrewAIAgent } from "@ag-ui/crewai";
 
  
 // 1. You can use any service adapter here for multi-agent support. We use
@@ -15,7 +15,7 @@ const serviceAdapter = new ExperimentalEmptyAdapter();
 //    integration to setup the connection.
 const runtime = new CopilotRuntime({
   agents: {
-    starterAgent: new HttpAgent({ url: "http://localhost:8000/" })
+    starterAgent: new CrewAIAgent({ url: "http://localhost:8000/" })
   }
 });
  
