@@ -32,31 +32,16 @@ yarn install
 bun install
 ```
 
-2. Install dependencies for the CrewAI Flow agent:
-```bash
-cd agent
-```
-```bash
-# Using pnpm (recommended)
-pnpm install 
+> **Note:** Installing the package dependencies will also install the agent's python dependencies via the `install:agent` script.
 
-# Using npm
-npm run install
 
-# Using yarn
-yarn install
-
-# Using bun
-bun run install
-```
-
-3. Set up your OpenAI API key:
+2. Set up your OpenAI API key:
 ```bash
 cd agent
 echo "OPENAI_API_KEY=your-openai-api-key-here" > .env
 ```
 
-4. Start the development server:
+3. Start the development server:
 ```bash
 # Using pnpm (recommended)
 pnpm dev

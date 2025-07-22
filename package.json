@@ -4,12 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "concurrently \"npm run dev:ui\" \"npm run dev:agent\" --names ui,agent --prefix-colors blue,green --kill-others",
-    "dev:agent": "cd agent && python server.py",
+    "dev:agent": "./scripts/run-agent.sh",
     "dev:ui": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "install:agent": "cd agent && pip install -r requirements.txt"
+    "install:agent": "./scripts/setup-agent.sh",
+    "postinstall": "npm run install:agent"
   },
   "dependencies": {
     "@ag-ui/crewai": "^0.0.2",
