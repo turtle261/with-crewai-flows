@@ -6,6 +6,8 @@ import json
 from litellm import completion
 from crewai.flow.flow import Flow, start, router, listen
 from ag_ui_crewai.sdk import copilotkit_stream, CopilotKitState
+from crewai import LLM
+import os
 
 class AgentState(CopilotKitState):
     """
@@ -75,11 +77,12 @@ class SampleAgentFlow(Flow[AgentState]):
         # 1. Run the model and stream the response
         #    Note: In order to stream the response, wrap the completion call in
         #    copilotkit_stream and set stream=True.
+        llm = LLM(model="gemini/gemini-2.0-flash", api_key=os.getenv("GEMINI_KEY"))
         response = await copilotkit_stream(
             completion(
 
                 # 1.1 Specify the model to use
-                model="openai/gpt-4o",
+                model=llm,
                 messages=[
                     {
                         "role": "system", 
@@ -98,7 +101,8 @@ class SampleAgentFlow(Flow[AgentState]):
                 #     enable this for faster performance if you want to manage
                 #     the complexity of running tool calls in parallel.
                 parallel_tool_calls=False,
-                stream=True
+                stream=True,
+                verbose=True
             )
         )
 

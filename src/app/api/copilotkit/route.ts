@@ -15,7 +15,7 @@ const serviceAdapter = new ExperimentalEmptyAdapter();
 //    integration to setup the connection.
 const runtime = new CopilotRuntime({
   agents: {
-    starterAgent: new CrewAIAgent({ url: "http://localhost:8000/" })
+    starterAgent: new CrewAIAgent({ url: "http://localhost:8007/" })
   }
 });
  
