@@ -3,7 +3,7 @@ This is the main entry point for the agent.
 It defines the workflow graph, state, tools, nodes and edges.
 """
 import json
-from litellm import completion
+from litellm import completion, acompletion
 from crewai.flow.flow import Flow, start, router, listen
 from ag_ui_crewai.sdk import copilotkit_stream, CopilotKitState
 from crewai import LLM
@@ -44,7 +44,7 @@ tools = [
 ]
 
 tool_handlers = {
-    "get_weather": lambda args: f"The weather for {args['location']} is 70 degrees, clear skies, 45% humidity, 5 mph wind, and feels like 72 degrees."
+    "get_weather": lambda args: f"The weather for {args['location']} is 70 degrees, clear skies, 45% humidity, 5 mph wind, and feels like 72 degrees.",
     # your tool handler here
 }
 
@@ -77,34 +77,25 @@ class SampleAgentFlow(Flow[AgentState]):
         # 1. Run the model and stream the response
         #    Note: In order to stream the response, wrap the completion call in
         #    copilotkit_stream and set stream=True.
-        llm = LLM(model="gemini/gemini-2.0-flash", api_key=os.getenv("GEMINI_KEY"))
-        response = await copilotkit_stream(
-            completion(
-
-                # 1.1 Specify the model to use
-                model=llm,
-                messages=[
-                    {
-                        "role": "system", 
-                        "content": system_prompt
-                    },
-                    *self.state.messages
-                ],
-
-                # 1.2 Bind the tools to the model
-                tools=[
-                    *self.state.copilotkit.actions,
-                    GET_WEATHER_TOOL
-                ],
-
-                # 1.3 Disable parallel tool calls to avoid race conditions,
-                #     enable this for faster performance if you want to manage
-                #     the complexity of running tool calls in parallel.
-                parallel_tool_calls=False,
-                stream=True,
-                verbose=True
-            )
+        llm = "gemini/gemini-2.0-flash"
+        # 1.a Obtain the async stream wrapper from LLM
+        wrapper = await acompletion(
+            model=llm,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                *self.state.messages
+            ],
+            tools=[
+                *self.state.copilotkit.actions,
+                GET_WEATHER_TOOL
+            ],
+            parallel_tool_calls=False,
+            stream=True,
+            drop_params=True,
+            api_key=os.getenv("GEMINI_API_KEY")
         )
+        # 1.b Stream through CopilotKit
+        response = await copilotkit_stream(wrapper)
 
         message = response.choices[0].message
 
