@@ -3,11 +3,16 @@ This is the main entry point for the agent.
 It defines the workflow graph, state, tools, nodes and edges.
 """
 import json
+import os
+
 from litellm import completion, acompletion
 from crewai.flow.flow import Flow, start, router, listen
 from ag_ui_crewai.sdk import copilotkit_stream, CopilotKitState
 from crewai import LLM
-import os
+from crewai_tools import FileReadTool
+
+# Respect backend rate limits when calling Gemini
+os.environ.setdefault("LITELLM_MAX_REQUESTS_PER_MINUTE", "10")
 
 class AgentState(CopilotKitState):
     """
@@ -38,14 +43,32 @@ GET_WEATHER_TOOL = {
     }
 }
 
+FILE_READ_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "FileReadTool",
+        "description": "Read the contents of a local file and return it as text.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Path to the file to read."
+                }
+            },
+            "required": ["file_path"]
+        }
+    }
+}
+
 tools = [
-    GET_WEATHER_TOOL
-    # your_tool_here
+    GET_WEATHER_TOOL,
+    FILE_READ_TOOL
 ]
 
 tool_handlers = {
     "get_weather": lambda args: f"The weather for {args['location']} is 70 degrees, clear skies, 45% humidity, 5 mph wind, and feels like 72 degrees.",
-    # your tool handler here
+    "FileReadTool": lambda args: FileReadTool().run(args["file_path"])
 }
 
 class SampleAgentFlow(Flow[AgentState]):
@@ -87,11 +110,13 @@ class SampleAgentFlow(Flow[AgentState]):
             ],
             tools=[
                 *self.state.copilotkit.actions,
-                GET_WEATHER_TOOL
+                GET_WEATHER_TOOL,
+                FILE_READ_TOOL
             ],
             parallel_tool_calls=False,
             stream=True,
             drop_params=True,
+            reasoning=True,
             api_key=os.getenv("GEMINI_API_KEY")
         )
         # 1.b Stream through CopilotKit
