@@ -1,11 +1,16 @@
 "use client";
 
-import { useCoAgent, useCopilotAction } from "@copilotkit/react-core";
+import { useCoAgent, useCopilotAction, useCoAgentStateRender } from "@copilotkit/react-core";
 import { CopilotKitCSSProperties, CopilotSidebar } from "@copilotkit/react-ui";
 import { useState } from "react";
 
 export default function CopilotKitPage() {
   const [themeColor, setThemeColor] = useState("#6366f1");
+
+  useCoAgentStateRender({
+    name: "starterAgent",
+    render: ({ state }) => <AgentTimeline items={state.timeline} />,
+  });
 
   // 🪁 Frontend Actions: https://docs.copilotkit.ai/guides/frontend-actions
   useCopilotAction({
@@ -113,6 +118,35 @@ function YourMainContent({ themeColor }: { themeColor: string }) {
           No proverbs yet. Ask the assistant to add some!
         </p>}
       </div>
+    </div>
+  );
+}
+
+type TimelineItem = {
+  name?: string;
+  tool?: string;
+  thought?: string;
+  result?: unknown;
+};
+
+function AgentTimeline({ items }: { items?: TimelineItem[] }) {
+  return (
+    <div className="flex flex-col gap-2">
+      {items?.map((item, idx) => (
+        <div key={idx} className="bg-white/15 p-2 rounded">
+          <strong>{item.tool ? `Used ${item.tool}` : item.name}</strong>
+          {item.thought && (
+            <div className="text-sm italic whitespace-pre-wrap">{item.thought}</div>
+          )}
+          {item.result && (
+            <pre className="text-xs whitespace-pre-wrap bg-black/20 p-1 rounded">
+              {typeof item.result === "string"
+                ? item.result
+                : JSON.stringify(item.result, null, 2)}
+            </pre>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
