@@ -84,17 +84,6 @@ class CopilotBridgeTool(BaseTool):
                     except Exception as e:  # pragma: no cover
                         result_msg = f"Failed to add proverb: {e}"
             
-            # Handle setting theme color - match frontend parameter names
-            elif self.name.lower() in {"setthemecolor", "set_theme_color", "settheme", "set_theme"}:
-                # Try multiple possible parameter names to match frontend
-                theme = (kwargs.get("themeColor") or kwargs.get("theme_color") or 
-                        kwargs.get("theme") or kwargs.get("color") or kwargs.get("value"))
-                if theme:
-                    try:
-                        flow.state.theme = str(theme)  # type: ignore[attr-defined]
-                        result_msg = f"🎨 Theme changed to {theme}"
-                    except Exception as e:  # pragma: no cover
-                        result_msg = f"Failed to set theme: {e}"
         
         # Send events to CopilotKit frontend
         if queue is not None:

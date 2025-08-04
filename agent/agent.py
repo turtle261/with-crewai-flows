@@ -1,5 +1,5 @@
 """Main CrewAI flow integrating CopilotKit actions."""
-from crewai.flow.flow import Flow, start, router, listen
+from crewai.flow.flow import Flow, start
 from ag_ui_crewai.sdk import CopilotKitState
 from crewai import Agent, Crew, Task, Process
 from crewai_tools import FileReadTool
@@ -10,7 +10,6 @@ from copilot_bridge_tool import CopilotBridgeTool
 class AgentState(CopilotKitState):
     """State carried between CopilotKit and CrewAI."""
     proverbs: list[str] = []
-    theme: str = "#6366f1"  # Default theme color to match frontend
 
 
 class SampleAgentFlow(Flow[AgentState]):
@@ -32,7 +31,7 @@ class SampleAgentFlow(Flow[AgentState]):
             backstory=(
                 "You are a sophisticated assistant with access to both file reading capabilities "
                 "and frontend UI controls through CopilotKit. You can read and analyze files, "
-                "add proverbs to the UI, change theme colors, and perform other interactive tasks. "
+                "add proverbs to the UI, and perform other interactive tasks. "
                 "When users ask questions, use your tools appropriately - read files for information "
                 "and use CopilotKit actions to update the UI state. Always be helpful and thorough."
             ),
@@ -43,25 +42,15 @@ class SampleAgentFlow(Flow[AgentState]):
         )
 
     def _update_agent_tools(self) -> None:
-        """
-        Refresh agent tools with all CopilotKit Generative UI actions and CrewAI tools.
-        Ensures theme changes and other UI features are always available and scalable.
-        """
+        """Refresh agent tools with all CopilotKit actions and CrewAI tools."""
         copilotkit_tools = []
-        # Always include theme change and proverb actions, plus any discovered actions
         if hasattr(self.state, 'copilotkit'):
             actions = getattr(self.state.copilotkit, 'actions', [])
-            # Add explicit theme change action if not present
-            if not any(a.get('name') == 'setTheme' for a in actions):
-                actions.append({'name': 'setTheme', 'description': 'Change the UI theme color', 'args': ['theme']})
             # Add explicit addProverb action if not present
             if not any(a.get('name') == 'addProverb' for a in actions):
                 actions.append({'name': 'addProverb', 'description': 'Add a proverb to the UI', 'args': ['proverb']})
-            # Wrap all actions as bridge tools
             copilotkit_tools = [CopilotBridgeTool(action, flow=self) for action in actions]
-        # Combine CrewAI tools and CopilotKit tools
         self.agent.tools = [self.file_read_tool, *copilotkit_tools]
-        # Debug logging for tool names
         tool_names = [getattr(tool, 'name', str(tool)) for tool in self.agent.tools]
         print(f"Updated agent tools: {tool_names}")
 
@@ -84,10 +73,10 @@ class SampleAgentFlow(Flow[AgentState]):
             
             Available tools:
             - FileReadTool: Read files from the knowledge directory or any other files
-            - CopilotKit actions: Update UI state (add proverbs, change theme colors)
-            
+            - CopilotKit actions: Update UI state (add proverbs)
+
             If the user mentions reading files, use the FileReadTool.
-            If the user wants to add proverbs or change themes, use the appropriate CopilotKit actions.
+            If the user wants to add proverbs, use the appropriate CopilotKit actions.
             Always provide helpful, comprehensive responses.
             """
             
@@ -120,7 +109,7 @@ class SampleAgentFlow(Flow[AgentState]):
             user_message = self.state.messages[-1].get("content", "")
 
         print(f"Processing user message: {user_message}")
-        print(f"Current state - proverbs: {len(self.state.proverbs)}, theme: {self.state.theme}")
+        print(f"Current state - proverbs: {len(self.state.proverbs)}")
         
         crew_result = await self._execute_crew(user_message)
         
@@ -128,7 +117,7 @@ class SampleAgentFlow(Flow[AgentState]):
         self.state.messages.append({"role": "assistant", "content": crew_result})
         
         print(f"Crew result: {crew_result}")
-        print(f"Updated state - proverbs: {len(self.state.proverbs)}, theme: {self.state.theme}")
+        print(f"Updated state - proverbs: {len(self.state.proverbs)}")
         
         # Return the result directly - no routing needed for simple chat
         return crew_result

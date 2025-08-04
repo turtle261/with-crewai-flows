@@ -72,10 +72,9 @@ The following scripts can also be run using your preferred package manager:
 ## Documentation
 
 The main UI component is in `src/app/page.tsx`. You can:
-- Modify the theme colors and styling
 - Add new frontend actions
 - Utilize shared-state
-- Customize your user-interface for interactin with CrewAI Flow
+- Customize your user-interface for interacting with CrewAI Flow
 
 ## 📚 Documentation
 
