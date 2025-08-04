@@ -20,19 +20,34 @@ def _args_model_from_schema(name: str, schema: Dict[str, Any]) -> type[BaseModel
     props = schema.get("properties", {})
     required = schema.get("required", [])
     fields = {}
+    
     for prop_name, prop_schema in props.items():
-        python_type = str
-        t = prop_schema.get("type")
-        if t == "integer":
+        python_type = str  # default type
+        prop_type = prop_schema.get("type")
+        
+        # Handle different JSON schema types
+        if prop_type == "integer":
             python_type = int
-        elif t == "number":
+        elif prop_type == "number":
             python_type = float
-        elif t == "boolean":
+        elif prop_type == "boolean":
             python_type = bool
+        elif prop_type == "array":
+            # Handle arrays - for now default to list[str]
+            python_type = list[str]
+        elif prop_type == "object":
+            # Handle objects - default to dict
+            python_type = dict
+        # else: keep as str for string type or unknown types
+        
         default = ... if prop_name in required else None
-        fields[prop_name] = (python_type, Field(default=default, description=prop_schema.get("description")))
+        description = prop_schema.get("description", f"Parameter {prop_name}")
+        fields[prop_name] = (python_type, Field(default=default, description=description))
+    
+    # If no fields, create empty model
     if not fields:
         return create_model(f"{name}Args", __base__=BaseModel)
+    
     return create_model(f"{name}Args", **fields)
 
 
@@ -52,6 +67,36 @@ class CopilotBridgeTool(BaseTool):
         flow = self._flow or flow_context.get(None)
         queue = get_queue(flow)
         call_id = f"call_{uuid.uuid4().hex[:8]}"
+        result_msg = ""
+        
+        # Mutate flow state for specific known actions so UI can reflect changes
+        if flow is not None and hasattr(flow, "state"):
+            # Handle adding a proverb
+            if self.name.lower() in {"addproverb", "add_proverb"}:
+                # Try multiple possible parameter names
+                proverb = kwargs.get("proverb") or kwargs.get("text") or kwargs.get("value")
+                if proverb:
+                    try:
+                        if not hasattr(flow.state, 'proverbs'):
+                            flow.state.proverbs = []
+                        flow.state.proverbs.append(str(proverb))  # type: ignore[attr-defined]
+                        result_msg = f"📜 Added proverb: {proverb}"
+                    except Exception as e:  # pragma: no cover
+                        result_msg = f"Failed to add proverb: {e}"
+            
+            # Handle setting theme color - match frontend parameter names
+            elif self.name.lower() in {"setthemecolor", "set_theme_color", "settheme", "set_theme"}:
+                # Try multiple possible parameter names to match frontend
+                theme = (kwargs.get("themeColor") or kwargs.get("theme_color") or 
+                        kwargs.get("theme") or kwargs.get("color") or kwargs.get("value"))
+                if theme:
+                    try:
+                        flow.state.theme = str(theme)  # type: ignore[attr-defined]
+                        result_msg = f"🎨 Theme changed to {theme}"
+                    except Exception as e:  # pragma: no cover
+                        result_msg = f"Failed to set theme: {e}"
+        
+        # Send events to CopilotKit frontend
         if queue is not None:
             queue.put_nowait(
                 ToolCallStartEvent(
@@ -74,4 +119,5 @@ class CopilotBridgeTool(BaseTool):
                     tool_call_id=call_id,
                 )
             )
-        return f"Sent CopilotKit action {self.name}"
+        
+        return result_msg or f"Successfully executed CopilotKit action '{self.name}' with parameters: {kwargs}"
