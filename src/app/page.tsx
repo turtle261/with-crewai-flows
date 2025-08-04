@@ -1,11 +1,16 @@
 "use client";
 
-import { useCoAgent, useCopilotAction } from "@copilotkit/react-core";
+import { useCoAgent, useCopilotAction, useCoAgentStateRender } from "@copilotkit/react-core";
 import { CopilotKitCSSProperties, CopilotSidebar } from "@copilotkit/react-ui";
 import { useState } from "react";
 
 export default function CopilotKitPage() {
   const [themeColor, setThemeColor] = useState("#6366f1");
+
+  useCoAgentStateRender({
+    name: "starterAgent",
+    render: ({ state }) => <AgentTimeline items={state.timeline} />,
+  });
 
   // 🪁 Frontend Actions: https://docs.copilotkit.ai/guides/frontend-actions
   useCopilotAction({
@@ -167,5 +172,41 @@ function WeatherCard({ location, themeColor }: { location?: string, themeColor: 
       </div>
     </div>
   </div>
+  );
+}
+
+type TimelineItem = {
+  name?: string;
+  description?: string;
+  thought?: string;
+  tool?: string;
+  result?: unknown;
+};
+
+function AgentTimeline({ items }: { items?: TimelineItem[] }) {
+  if (!items) return null;
+  return (
+    <div className="space-y-2">
+      {items.map((item, idx) => (
+        <div key={idx} className="bg-white/10 p-2 rounded-md text-white">
+          <div className="font-semibold">
+            {item.tool ? `Used ${item.tool}` : item.name}
+          </div>
+          {item.description && <div className="text-sm">{item.description}</div>}
+          {item.thought && (
+            <details className="text-sm">
+              <summary>Thought</summary>
+              <pre className="whitespace-pre-wrap">{item.thought}</pre>
+            </details>
+          )}
+          {item.result && (
+            <details className="text-sm">
+              <summary>Result</summary>
+              <pre className="whitespace-pre-wrap">{JSON.stringify(item.result, null, 2)}</pre>
+            </details>
+          )}
+        </div>
+      ))}
+    </div>
   );
 }

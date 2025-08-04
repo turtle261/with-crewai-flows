@@ -11,7 +11,7 @@ This is a starter template for building AI agents using [CrewAI Flows](https://d
   - npm
   - [yarn](https://classic.yarnpkg.com/lang/en/docs/install/#mac-stable)
   - [bun](https://bun.sh/)
-- OpenAI API Key (for the CrewAI Flow agent)
+- Google Gemini API Key (for the CrewAI Flow agent)
 
 > **Note:** This repository ignores lock files (package-lock.json, yarn.lock, pnpm-lock.yaml, bun.lockb) to avoid conflicts between different package managers. Each developer should generate their own lock file using their preferred package manager. After that, make sure to delete it from the .gitignore.
 
@@ -35,10 +35,10 @@ bun install
 > **Note:** Installing the package dependencies will also install the agent's python dependencies via the `install:agent` script.
 
 
-2. Set up your OpenAI API key:
+2. Set up your Gemini API key:
 ```bash
-cd agent
-echo "OPENAI_API_KEY=your-openai-api-key-here" > .env
+cd backend
+echo "GEMINI_API_KEY=your-gemini-api-key-here" > .env
 ```
 
 3. Start the development server:
@@ -56,7 +56,8 @@ yarn dev
 bun run dev
 ```
 
-This will start both the UI and agent servers concurrently.
+This will start both the UI and agent servers concurrently. The backend uses
+Gemini via LiteLLM and exposes a FastMCP server on port 8000.
 
 ## Available Scripts
 The following scripts can also be run using your preferred package manager:
@@ -96,5 +97,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 ### Agent Connection Issues
 If you see "I'm having trouble connecting to my tools", make sure:
 1. The CrewAI Flow agent is running on port 8000
-2. Your OpenAI API key is set correctly
+2. Your Gemini API key is set correctly
 3. Both servers started successfully

@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Navigate to the agent directory
-cd "$(dirname "$0")/../agent" || exit 1
+# Navigate to the backend directory
+cd "$(dirname "$0")/../backend" || exit 1
 
 # Activate the virtual environment
 source .venv/bin/activate
 
-# Run the agent
+# Run the backend server
 .venv/bin/python server.py
