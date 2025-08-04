@@ -1,208 +1,134 @@
-"""
-This is the main entry point for the agent.
-It defines the workflow graph, state, tools, nodes and edges.
-This implementation uses a proper CrewAI agent and crew with FileReadTool,
-while maintaining CopilotKit generative UI capabilities.
-"""
-import json
-import os
-from litellm import completion, acompletion
+"""Main CrewAI flow integrating CopilotKit actions."""
 from crewai.flow.flow import Flow, start, router, listen
-from ag_ui_crewai.sdk import copilotkit_stream, CopilotKitState
-from crewai import LLM, Agent, Crew, Task, Process
+from ag_ui_crewai.sdk import CopilotKitState
+from crewai import Agent, Crew, Task, Process
 from crewai_tools import FileReadTool
 
+from copilot_bridge_tool import CopilotBridgeTool
+
+
 class AgentState(CopilotKitState):
-    """
-    Here we define the state of the agent
-
-    In this instance, we're inheriting from CopilotKitState, which will bring in
-    the CopilotKitState fields. We're also adding a custom field, `language`,
-    which will be used to set the language of the agent.
-    """
+    """State carried between CopilotKit and CrewAI."""
     proverbs: list[str] = []
-    # your_custom_agent_state: str = ""
+    theme: str = "#6366f1"  # Default theme color to match frontend
 
-GET_WEATHER_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "get_weather",
-        "description": "Get the current weather in a given location",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "location": {
-                    "type": "string", 
-                    "description": "The city and state, e.g. San Francisco, CA"
-                    }
-                    },
-            "required": ["location"]
-        }
-    }
-}
-
-tools = [
-    GET_WEATHER_TOOL
-    # your_tool_here
-]
-
-tool_handlers = {
-    "get_weather": lambda args: f"The weather for {args['location']} is 70 degrees, clear skies, 45% humidity, 5 mph wind, and feels like 72 degrees.",
-    # your tool handler here
-}
 
 class SampleAgentFlow(Flow[AgentState]):
-    """
-    This flow uses both CrewAI agents with tools (like FileReadTool) for backend processing,
-    and CopilotKit actions for generative UI capabilities.
-    """
+    """Flow that exposes a single CrewAI agent with CopilotKit tools."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self._crew = None
         self._setup_crew()
 
-    def _setup_crew(self):
-        """Setup the CrewAI agent and crew with FileReadTool"""
-        # Create FileReadTool for reading files from knowledge directory
-        file_read_tool = FileReadTool()
-        
-        # Create CrewAI agent
+    def _setup_crew(self) -> None:
+        """Initialize the CrewAI agent with the FileReadTool."""
+        self.file_read_tool = FileReadTool()
         self.agent = Agent(
-            role="Knowledge Assistant",
-            goal="Help users by accessing information from files and providing helpful responses",
-            backstory=(
-                "You are a knowledgeable assistant with access to file reading capabilities. "
-                "You can read and analyze files to provide comprehensive answers. "
-                "When users ask questions, you should use your file reading tools when appropriate "
-                "to access relevant information."
+            role="Knowledge Assistant and UI Controller",
+            goal=(
+                "Help users by accessing information from files, managing UI state, and coordinating "
+                "between CopilotKit frontend actions and CrewAI tools seamlessly"
             ),
-            tools=[file_read_tool],
+            backstory=(
+                "You are a sophisticated assistant with access to both file reading capabilities "
+                "and frontend UI controls through CopilotKit. You can read and analyze files, "
+                "add proverbs to the UI, change theme colors, and perform other interactive tasks. "
+                "When users ask questions, use your tools appropriately - read files for information "
+                "and use CopilotKit actions to update the UI state. Always be helpful and thorough."
+            ),
+            tools=[self.file_read_tool],
             llm="gemini/gemini-2.0-flash",
-            verbose=False,  # Disable verbose to avoid Unicode encoding issues on Windows
-            allow_delegation=False
+            verbose=True,  # Enable verbose mode for better debugging
+            allow_delegation=False,
         )
 
+    def _update_agent_tools(self) -> None:
+        """
+        Refresh agent tools with all CopilotKit Generative UI actions and CrewAI tools.
+        Ensures theme changes and other UI features are always available and scalable.
+        """
+        copilotkit_tools = []
+        # Always include theme change and proverb actions, plus any discovered actions
+        if hasattr(self.state, 'copilotkit'):
+            actions = getattr(self.state.copilotkit, 'actions', [])
+            # Add explicit theme change action if not present
+            if not any(a.get('name') == 'setTheme' for a in actions):
+                actions.append({'name': 'setTheme', 'description': 'Change the UI theme color', 'args': ['theme']})
+            # Add explicit addProverb action if not present
+            if not any(a.get('name') == 'addProverb' for a in actions):
+                actions.append({'name': 'addProverb', 'description': 'Add a proverb to the UI', 'args': ['proverb']})
+            # Wrap all actions as bridge tools
+            copilotkit_tools = [CopilotBridgeTool(action, flow=self) for action in actions]
+        # Combine CrewAI tools and CopilotKit tools
+        self.agent.tools = [self.file_read_tool, *copilotkit_tools]
+        # Debug logging for tool names
+        tool_names = [getattr(tool, 'name', str(tool)) for tool in self.agent.tools]
+        print(f"Updated agent tools: {tool_names}")
+
     def _create_crew_task(self, user_message: str) -> Task:
-        """Create a task for the crew based on user message"""
+        """Create a task for the crew (deprecated - now handled in _execute_crew)."""
         return Task(
             description=f"Process this user request: {user_message}",
             expected_output="A helpful response that addresses the user's request",
-            agent=self.agent
+            agent=self.agent,
         )
 
     async def _execute_crew(self, user_message: str) -> str:
-        """Execute CrewAI crew for backend processing"""
         try:
-            task = self._create_crew_task(user_message)
+            # Ensure agent tools are up to date with latest CopilotKit actions
+            self._update_agent_tools()
+            
+            # Create a more detailed task description to help the agent understand context
+            task_description = f"""
+            Process this user request: {user_message}
+            
+            Available tools:
+            - FileReadTool: Read files from the knowledge directory or any other files
+            - CopilotKit actions: Update UI state (add proverbs, change theme colors)
+            
+            If the user mentions reading files, use the FileReadTool.
+            If the user wants to add proverbs or change themes, use the appropriate CopilotKit actions.
+            Always provide helpful, comprehensive responses.
+            """
+            
+            task = Task(
+                description=task_description,
+                expected_output="A helpful response that addresses the user's request and updates UI state as needed",
+                agent=self.agent,
+            )
+            
             crew = Crew(
                 agents=[self.agent],
                 tasks=[task],
                 process=Process.sequential,
-                verbose=False  # Disable verbose to avoid Unicode encoding issues on Windows
+                verbose=True,  # Enable verbose mode for better debugging
             )
             
             result = crew.kickoff()
-            return result.raw if hasattr(result, 'raw') else str(result)
-        except Exception as e:
-            return f"Error processing request with crew: {str(e)}"
+            return result.raw if hasattr(result, "raw") else str(result)
+            
+        except Exception as exc:  # pylint: disable=broad-except
+            error_msg = f"Error processing request with crew: {exc}"
+            print(f"CrewAI Error: {error_msg}")
+            return error_msg
 
     @start()
-    @listen("route_follow_up")
-    async def start_flow(self):
-        """
-        This is the entry point for the flow.
-        """
-
-    @router(start_flow)
-    async def chat(self):
-        """
-        Hybrid chat node that combines CrewAI backend processing with CopilotKit UI actions.
-        - Uses CrewAI agent with FileReadTool for file operations and knowledge access
-        - Maintains CopilotKit actions for generative UI capabilities
-        - Handles tool calls appropriately based on their type
-        """
-        # Get the latest user message
+    async def start_flow(self) -> str:
+        """Entry point for the flow."""
         user_message = ""
         if self.state.messages:
             user_message = self.state.messages[-1].get("content", "")
 
-        # First, check if this should be handled by CrewAI crew
-        # This is a simple heuristic - in practice, you might want more sophisticated routing
-        should_use_crew = (
-            "file" in user_message.lower() or 
-            "read" in user_message.lower() or 
-            "knowledge" in user_message.lower() or
-            "secret" in user_message.lower() or
-            len(user_message) > 100  # Complex requests go to crew
-        )
-
-        if should_use_crew:
-            # Use CrewAI crew for backend processing
-            crew_result = await self._execute_crew(user_message)
-            
-            # Add crew result as assistant message
-            self.state.messages.append({
-                "role": "assistant", 
-                "content": crew_result
-            })
-            return "route_end"
-
-        # For simpler requests or UI actions, use the direct LLM approach
-        system_prompt = f"You are a helpful assistant. The current proverbs are {self.state.proverbs}."
-
-        llm = "gemini/gemini-2.0-flash"
-        wrapper = await acompletion(
-            model=llm,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                *self.state.messages
-            ],
-            tools=[
-                *self.state.copilotkit.actions,
-                GET_WEATHER_TOOL
-            ],
-            parallel_tool_calls=False,
-            stream=True,
-            drop_params=True,
-            api_key=os.getenv("GEMINI_API_KEY")
-        )
+        print(f"Processing user message: {user_message}")
+        print(f"Current state - proverbs: {len(self.state.proverbs)}, theme: {self.state.theme}")
         
-        response = await copilotkit_stream(wrapper)
-        message = response.choices[0].message
-
-        # Append the message to the messages in state
-        self.state.messages.append(message)
-
-        # Handle tool calls
-        if message.get("tool_calls"):
-            tool_call = message["tool_calls"][0]
-            tool_call_id = tool_call["id"]
-            tool_call_name = tool_call["function"]["name"]
-            tool_call_args = json.loads(tool_call["function"]["arguments"])
-
-            # Check for CopilotKit actions
-            if (tool_call_name in
-                [action["function"]["name"] for action in self.state.copilotkit.actions]):
-                return "route_end"
-
-            # Handle backend tool calls
-            handler = tool_handlers[tool_call_name]
-            result = handler(tool_call_args)
-
-            # Append the result to the messages in state
-            self.state.messages.append({
-                "role": "tool",
-                "content": result,
-                "tool_call_id": tool_call_id
-            })
-
-            return "route_follow_up"
-
-        return "route_end"
-
-    @listen("route_end")
-    async def end(self):
-        """
-        End the flow.
-        """
+        crew_result = await self._execute_crew(user_message)
+        
+        # Update messages with the result
+        self.state.messages.append({"role": "assistant", "content": crew_result})
+        
+        print(f"Crew result: {crew_result}")
+        print(f"Updated state - proverbs: {len(self.state.proverbs)}, theme: {self.state.theme}")
+        
+        # Return the result directly - no routing needed for simple chat
+        return crew_result
